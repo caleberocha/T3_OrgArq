@@ -6,8 +6,9 @@ function New-Cache {
     )
     $cache = @()
     for($i = 0; $i -lt [Math]::Pow(2,$lineSize); $i++) {
-        $cache += 1 | Select-Object @{n="v"; e={0}},
-                                    @{n="tag"; e={0}},
+        $cache += 1 | Select-Object @{n="line"; e={$i}},
+                                    @{n="v";    e={0}},
+                                    @{n="tag";  e={0}},
                                     @{n="data"; e={@()}}
 
         for($j = 0; $j -lt [Math]::Pow(2,$wordSize); $j++) {
@@ -30,6 +31,10 @@ function ConvertTo-Binary([int] $n, $addressSize = 16) {
     return "{0:d$addressSize}" -f [Convert]::ToInt32(([Convert]::ToString($n, 2)))
 }
 
+function ConvertTo-Hex([int] $n, $size = 4) {
+    return "{0:x$size}" -f $n
+}
+
 function Invoke-CacheSimulator {
     param(
         [Parameter(Mandatory, Position=0)][int[]] $data,
@@ -43,12 +48,12 @@ function Invoke-CacheSimulator {
 
     $cache = New-Cache -lineSize $lineSize -wordSize $wordSize;
     for($i = 0; $i -lt $data.Count; $i++) {
-        $objResultLine = 1 | Select-Object @{n="Byte"; e={}},
-                                           @{n="Tag"; e={}},
-                                           @{n="Line"; e={}},
-                                           @{n="Word"; e={}},
+        $objResultLine = 1 | Select-Object @{n="Byte";  e={}},
+                                           @{n="Tag";   e={}},
+                                           @{n="Line";  e={}},
+                                           @{n="Word";  e={}},
                                            @{n="Cache"; e={}},
-                                           @{n="Hit"; e={}}
+                                           @{n="Hit";   e={}}
 
         $tag = $data[$i] -shr ($addressSize-$tagSize);
         $line = ($data[$i] -band [Math]::Pow(2,$addressSize-$tagSize)-1) -shr $wordSize
@@ -102,35 +107,86 @@ function printCache {
         $hitsCount = 0
         $linesCount = 0
 
+        $states = @()
+
         $addressSize = $tagSize + $lineSize + $wordSize
+        $hexSize = [Math]::Ceiling($addressSize / 4)
+    }
+
+    PROCESS {
+        $linesCount++
+        if($cache.Hit -eq "Hit") {
+            $hitsCount++
+        }
+
+        $states += $cache | Select-Object @{n="Hex"; e={ConvertTo-Hex $_.Byte $hexSize}}, Byte, Tag, Line, Word, Hit
+    }
+    
+    END {
+        $output += ($states | Select-Object @{n="Hex";  e={ConvertTo-Hex $_.Byte $hexSize}},
+                                            @{n="Byte"; e={ConvertTo-Binary $_.Byte $addressSize}},
+                                            @{n="Tag";  e={ConvertTo-Binary $_.Tag $tagSize}},
+                                            @{n="Line"; e={ConvertTo-Binary $_.Line $lineSize}},
+                                            @{n="Word"; e={ConvertTo-Binary $_.Word $wordSize}},
+                                            Hit
+        ) | Format-Table -AutoSize
+        $output += "Estado final da cache:"
+        $output += ($cache.Cache | Select-Object @{n="Line"; e={ConvertTo-Binary $_.line $lineSize}},
+                                                 v,
+                                                 @{n="Tag"; e={ConvertTo-Binary $_.Tag $tagSize}},
+                                                 @{n="Data"; e={($_.data | % {ConvertTo-Binary $_ $addressSize}) -join " "}}
+        )| Format-Table -AutoSize
+        $output += "Endereços:          $linesCount"
+        $output += "Hits:               $hitsCount"
+        $output += "Misses:             $($linesCount - $hitsCount)"
+        $output += "Frequência de Hits: $($hitsCount / $linesCount * 100)%"
+        return $output
+    }
+}
+
+function printCacheAll {
+    [CmdLetBinding()]
+    param(
+        [Parameter(Mandatory, Position=3, ValueFromPipeline)]$cache,
+        [Parameter(Mandatory, Position=0)]$tagSize,
+        [Parameter(Mandatory, Position=1)]$lineSize,
+        [Parameter(Mandatory, Position=2)]$wordSize
+    )
+
+    BEGIN {
+        $output = @()
+        $hitsCount = 0
+        $linesCount = 0
+
+        $addressSize = $tagSize + $lineSize + $wordSize
+        $hexSize = [Math]::Ceiling($addressSize / 4)
+        $fHexSize = [Math]::Max($hexSize, 3)
         $fTagSize = [Math]::Max($tagSize, 3)
         $fLineSize = [Math]::Max($lineSize, 4)
         $fWordSize = [Math]::Max($wordSize, 4)
 
-        $format = "{0,-$addressSize} | {1,-$fTagSize} | {2,-$fLineSize} | {3,-$fWordSize} | {4,-4} | {5,-$fLineSize} | {6,-1} | {7,-$fTagSize} | {8,-$($addressSize * [Math]::Pow(2,$wordSize) + ([Math]::Pow(2,$wordSize))-1)}"
-        $output += $($format -f "Byte", "Tag", "Line", "Word", "Hit", "Line", "V", "Tag", "Data")
-        $output += $($format -f "----", "---", "----", "----", "---", "----", "-", "---", "----")
-        $output += $($format -f "","","","","","","","","")
+        $format = "{0,-$fHexSize} | {1,-$addressSize} | {2,-$fTagSize} | {3,-$fLineSize} | {4,-$fWordSize} | {5,-4} | {6,-$fLineSize} | {7,-1} | {8,-$fTagSize} | {9,-$($addressSize * [Math]::Pow(2,$wordSize) + ([Math]::Pow(2,$wordSize))-1)}"
+        $output += $($format -f "Hex", "Byte", "Tag", "Line", "Word", "Hit", "Line", "V", "Tag", "Data")
+        $output += $($format -f "---", "----", "---", "----", "----", "---", "----", "-", "---", "----")
+        $output += $($format -f "","","","","","","","","","")
     }
 
     PROCESS {
-        foreach($line in $cache) {
-            $linesCount++
-            if($line.Hit -eq "Hit") {
-                $hitsCount++
-            }
-
-            for($i = 0; $i -lt $line.Cache.Count; $i++) {
-                if($i -eq 0) {
-                    $output += $($format -f (ConvertTo-Binary $line.Byte $addressSize), (ConvertTo-Binary $line.Tag $tagSize), (ConvertTo-Binary $line.Line $lineSize), (ConvertTo-Binary $line.Word $wordSize), $line.Hit,
-                    (ConvertTo-Binary $i $lineSize), [Convert]::ToString($line.Cache[$i].v), (ConvertTo-Binary $line.Cache[$i].Tag $tagSize), $(($line.Cache[$i].data | % {ConvertTo-Binary $_ $addressSize}) -join " "))
-                } else {
-                    $output += $($format -f "", "", "", "", "",
-                    (ConvertTo-Binary $i $lineSize), [Convert]::ToString($line.Cache[$i].v), (ConvertTo-Binary $line.Cache[$i].Tag $tagSize), $(($line.Cache[$i].data | % {ConvertTo-Binary $_ $addressSize}) -join " "))
-                }
-            }
-            $output += $($format -f "","","","","","","","","")
+        $linesCount++
+        if($cache.Hit -eq "Hit") {
+            $hitsCount++
         }
+
+        for($i = 0; $i -lt $cache.Cache.Count; $i++) {
+            if($i -eq 0) {
+                $output += $($format -f (ConvertTo-Hex $cache.Byte $hexSize), (ConvertTo-Binary $cache.Byte $addressSize), (ConvertTo-Binary $cache.Tag $tagSize), (ConvertTo-Binary $cache.Line $lineSize), (ConvertTo-Binary $cache.Word $wordSize), $cache.Hit,
+                (ConvertTo-Binary $cache.Cache[$i].line $lineSize), [Convert]::ToString($cache.Cache[$i].v), (ConvertTo-Binary $cache.Cache[$i].Tag $tagSize), $(($cache.Cache[$i].data | % {ConvertTo-Binary $_ $addressSize}) -join " "))
+            } else {
+                $output += $($format -f "", "", "", "", "", "",
+                (ConvertTo-Binary $cache.Cache[$i].line $lineSize), [Convert]::ToString($cache.Cache[$i].v), (ConvertTo-Binary $cache.Cache[$i].Tag $tagSize), $(($cache.Cache[$i].data | % {ConvertTo-Binary $_ $addressSize}) -join " "))
+            }
+        }
+        $output += $($format -f "","","","","","","","","","")
     }
     
     END {
@@ -146,6 +202,5 @@ function printCache {
 
 #$d = 0x0000, 0x0002, 0x0004, 0x0006, 0x0008, 0x0048, 0x004a, 0x004c, 0x00c6, 0x004e, 0x0050
 $d = Get-Content addresses.txt
-#Invoke-CacheSimulator $d 10 4 2
-Invoke-CacheSimulator $d 10 4 2 | printCache 10 4 2 | Out-File associativo1.txt
-Invoke-CacheSimulator $d 10 5 1 | printCache 10 5 1 | Out-File associativo2.txt
+Invoke-CacheSimulator $d 10 4 2 | printCache 10 4 2 | Out-File direto1.txt
+Invoke-CacheSimulator $d 10 5 1 | printCache 10 5 1 | Out-File direto2.txt
