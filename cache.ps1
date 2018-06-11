@@ -35,7 +35,7 @@ function ConvertTo-Hex([int] $n, $size = 4) {
     return "{0:x$size}" -f $n
 }
 
-function Invoke-CacheSimulator {
+function Invoke-CacheSimulatorDirect {
     param(
         [Parameter(Mandatory, Position=0)][int[]]$data,
         [Parameter(Mandatory, Position=1)]$tagSize,
@@ -164,7 +164,7 @@ function Invoke-CacheSimulatorAssoc {
     return $result
 }
 
-function printCache {
+function printCacheDirect {
     [CmdLetBinding()]
     param(
         [Parameter(Mandatory, Position=3, ValueFromPipeline)]$cache,
@@ -264,7 +264,7 @@ function printCacheAssoc {
     }
 }
 
-function printCacheAll {
+function printCacheAllDirect {
     [CmdLetBinding()]
     param(
         [Parameter(Mandatory, Position=3, ValueFromPipeline)]$cache,
@@ -370,18 +370,13 @@ function printCacheAllAssoc {
     }
 }
 
-#$d = ConvertFrom-Binary @(100000, 011000, 011001, 111100, 001111, 111111, 000000, 000101, 011010, 100011)
-#$t = 2
-#$l = 2
-#$w = 2
-
-#$d = 0x0000, 0x0002, 0x0004, 0x0006, 0x0008, 0x0048, 0x004a, 0x004c, 0x00c6, 0x004e, 0x0050
 $d = Get-Content addresses.txt
+
 Write-Host direto1
-Invoke-CacheSimulator $d 10 4 2 | printCache 10 4 2 | Out-File direto1.txt
+Invoke-CacheSimulatorDirect $d 10 4 2 | printCacheDirect 10 4 2 | Out-File direto1.txt
 
 Write-Host direto2
-Invoke-CacheSimulator $d 10 5 1 | printCache 10 5 1 | Out-File direto2.txt
+Invoke-CacheSimulatorDirect $d 10 5 1 | printCacheDirect 10 5 1 | Out-File direto2.txt
 
 Write-Host assoc1
 Invoke-CacheSimulatorAssoc $d 14 2 16 | printCacheAssoc 14 2 16 | Out-File assoc1.txt
