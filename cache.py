@@ -29,12 +29,9 @@ def cacheSimulatorDirect(file, tagSize, lineSize, wordSize, out):
 	if(out != "console" and os.path.isfile(out)):
 		os.remove(out)
 
-	cache = []
-	for t in range(0, int(math.pow(2, lineSize))):
-		d = []
-		for u in range(0, int(math.pow(2, wordSize)) + 1):
-			d.append(None)
-		cache.append(d)
+	cache = [None] * int(math.pow(2, lineSize))
+	for i in range(0, len(cache)):
+		cache[i] = [None] * int(math.pow(2, wordSize))+1
 
 	bits = tagSize + lineSize + wordSize
 	hits = 0
@@ -64,7 +61,7 @@ def cacheSimulatorDirect(file, tagSize, lineSize, wordSize, out):
 	printCacheDirect(cache, lineSize, tagSize, out)
 	write("\nEnderecos: " + str(len(addresses)), out)
 	write("Hits:      " + str(hits) + " (" + str(hits / float(len(addresses)) * 100) + "%)", out)
-	write("Misses:    " + str(len(addresses) - hits), out)    
+	write("Misses:    " + str(len(addresses) - hits), out)
 
 
 def cacheSimulatorAssoc(file, tagSize, wordSize, cacheSize, out):
