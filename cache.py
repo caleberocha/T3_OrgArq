@@ -18,24 +18,25 @@ def bitSizeOf(number):
 	return n
 
 def hit(cache, line, address, addressSize, wordSize, tagSize):
+	# Para mapeamento associativo, line deve ser igual a -1
 	lineRange = [0, len(cache)]
 	if line > -1:
 		lineRange = [line, line+1]
 
 	for i in range(lineRange[0], lineRange[1]):
 		if len(cache[i]) > 0 and cache[i][0] == address >> addressSize - tagSize:
-			return True
-	return False
+			return i
+	return -1
 
 def printCache(cache, lineSize, tagSize, out):
-	l = str(lineSize)
+	l = lineSize
 	if lineSize == -1:
-		l = str(bitSizeOf(len(cache)))
+		l = bitSizeOf(len(cache))
 
-	write(("{0:"+l+"s}").format("Line") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | Dados", out)
+	write(("{0:"+str(l)+"s}").format("Line") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | Dados", out)
 	for i in range(0, len(cache)):
 		if len(cache[i]) > 1 and cache[i][0] != None:
-			write(("{0:0"+l+"b}").format(i) + " | " + ("{0:0"+str(tagSize)+"b}").format(cache[i][0]) + " | " + str(", ".join('{0:04x}'.format(k) for k in cache[i][1:])), out)
+			write(("{0:0"+str(l)+"b}").format(i) + " | " + ("{0:0"+str(tagSize)+"b}").format(cache[i][0]) + " | " + str(", ".join('{0:04x}'.format(k) for k in cache[i][1:])), out)
 	#write("", out)
 
 def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize, out):
@@ -76,8 +77,8 @@ def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize
 		write("{0:4s}".format("Addr") + " | " + ("{0:"+str(addressSize)+"s}").format("Byte") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | " + ("{0:"+str(wordSize)+"s}").format("Wd") + " | Result", out)
 
 	for address in addresses:
-		address = address.replace("\r","").replace("\n","")
-		address = int(address,16)
+		address = address.replace("\r", "").replace("\n", "")
+		address = int(address, 16)
 
 		word = address >> sizeofWord & ((1 << wordSize) - 1)
 		if isDirectMapping:
@@ -90,8 +91,11 @@ def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize
 			lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(wordSize)+"b}").format(word))
 			lineIndexForHit = -1
 		
-		if hit(cache, lineIndexForHit, address, addressSize, wordSize, tagSize):
+		# Em mapeamento associativo, lineIndexForHit deve ser igual a -1
+		h = hit(cache, lineIndexForHit, address, addressSize, wordSize, tagSize)
+		if h > -1:
 			hits += 1
+
 			write(lineContent + " | " + "Hit", out)
 		else:
 			write(lineContent + " | " + "Miss", out)
@@ -99,8 +103,9 @@ def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize
 			for i in range(1, len(cache[lineIndex])):
 				cache[lineIndex][i] = (address >> sizeofWord+wordSize << wordSize) + (i-1) << sizeofWord
 
+		# Contador
 		if isDirectMapping == False:
-			lineIndex += 1
+			lineIndex += 1				
 			lineIndex = lineIndex % cacheSize
 			lineSize = -1
 
@@ -113,7 +118,11 @@ def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize
 	write("Misses:    " + str(len(addresses) - hits), out)
 
 
+print("direto1")
 cacheSimulator("d", "addresses.txt", 16, 4, 2, 0, "direto1.txt")
+print("direto2")
 cacheSimulator("d", "addresses.txt", 16, 5, 1, 0, "direto2.txt")
+print("assoc1")
 cacheSimulator("a", "addresses.txt", 16, 0, 2, 16, "assoc1.txt")
+print("assoc2")
 cacheSimulator("a", "addresses.txt", 16, 0, 1, 32, "assoc2.txt")
