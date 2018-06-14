@@ -9,7 +9,7 @@ def write(text, where):
 		t.write(text + "\n")
 		t.close()
 
-def bitLen(number):
+def sizeof(number):
 	n = 0
 	while(number != 0):
 		number = number >> 1
@@ -28,7 +28,7 @@ def hitDirect(cacheLine, addr, addrSize, wordSize, tagSize):
 
 def hitAssoc(cache, addr, addrSize, wordSize, tagSize):
 	for line in cache:
-		if len(line) > 0 and line[0] == addr >> addrSize - tagSize:# and addr & ((1 << tagSize) - 1 << addrSize - tagSize) in line[1:]:
+		if len(line) > 0 and line[0] == addr >> addrSize - tagSize: # and addr & ((1 << tagSize) - 1 << addrSize - tagSize) in line[1:]:
 			return True
 
 	return False
@@ -41,9 +41,9 @@ def cacheSimulatorDirect(file, addressSize, lineSize, wordSize, out):
 	for i in range(0, len(cache)):
 		cache[i] = [None] * ((1 << wordSize) + 1)
 
-	wordBitLen = bitLen(wordSize) - 1
+	wordByteSize = addressSize / 8 - 1
 
-	tagSize = addressSize - lineSize - wordSize - wordBitLen
+	tagSize = addressSize - lineSize - wordSize - wordByteSize
 	hits = 0
 	arq = open(file, 'r')
 	addresses = arq.readlines()
@@ -53,9 +53,9 @@ def cacheSimulatorDirect(file, addressSize, lineSize, wordSize, out):
 		address = address.replace("\r","").replace("\n","")
 		address = int(address,16)
 
-		tag  = address >> lineSize + wordSize + wordBitLen
-		line = address >> wordSize + wordBitLen & ((1 << lineSize) - 1)
-		word = address >> wordBitLen & ((1 << wordSize) - 1)
+		tag  = address >> lineSize + wordSize + wordByteSize
+		line = address >> wordSize + wordByteSize & ((1 << lineSize) - 1)
+		word = address >> wordByteSize & ((1 << wordSize) - 1)
 
 		lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(lineSize)+"b}").format(line)) + " | " + ("{0:0"+str(wordSize)+"b}").format(word)
 		if hitDirect(cache[line], address, addressSize, wordSize, tagSize):
@@ -65,9 +65,9 @@ def cacheSimulatorDirect(file, addressSize, lineSize, wordSize, out):
 			write(lineContent + " | " + "Miss", out)
 			cache[line][0] = tag
 			for i in range(1, len(cache[line])):
-				cache[line][i] = (address >> wordBitLen+wordSize << wordSize) + (i-1) << wordBitLen
+				cache[line][i] = (address >> wordByteSize+wordSize << wordSize) + (i-1) << wordByteSize
 
-		printCacheDirect(cache, lineSize, tagSize, out)
+		#printCacheDirect(cache, lineSize, tagSize, out)
 
 	write("\nEstado final da cache:", out)
 	printCacheDirect(cache, lineSize, tagSize, out)
@@ -83,8 +83,8 @@ def cacheSimulatorAssoc(file, addressSize, wordSize, cacheSize, out):
 	for i in range(0, len(cache)):
 		cache[i] = [None] * ((1 << wordSize) + 1)
 
-	wordBitLen = bitLen(wordSize) - 1
-	tagSize = addressSize - wordSize - wordBitLen
+	wordByteSize = addressSize / 8 - 1
+	tagSize = addressSize - wordSize - wordByteSize
 	index = 0
 	hits = 0
 	arq = open(file, 'r')
@@ -95,8 +95,8 @@ def cacheSimulatorAssoc(file, addressSize, wordSize, cacheSize, out):
 		address = address.replace("\r","").replace("\n","")
 		address = int(address,16)
 
-		tag  = address >> wordSize + wordBitLen
-		word = address >> wordBitLen & ((1 << wordSize) - 1)
+		tag  = address >> wordSize + wordByteSize
+		word = address >> wordByteSize & ((1 << wordSize) - 1)
 
 		lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(wordSize)+"b}").format(word))
 		if hitAssoc(cache, address, addressSize, wordSize, tagSize):
@@ -106,12 +106,12 @@ def cacheSimulatorAssoc(file, addressSize, wordSize, cacheSize, out):
 			write(lineContent + " | " + "Miss", out)
 			cache[index][0] = tag
 			for i in range(1, len(cache[index])):
-				cache[index][i] = (address >> wordBitLen+wordSize << wordSize) + (i-1) << wordBitLen
+				cache[index][i] = (address >> wordByteSize+wordSize << wordSize) + (i-1) << wordByteSize
 
 			index += 1
 			index = index % cacheSize
 
-		#printCacheAssoc(cache, lineSize, tagSize, out)
+		#printCacheAssoc(cache, tagSize, out)
 
 	write("\nEstado final da cache:", out)
 	printCacheAssoc(cache, tagSize, out)
@@ -129,7 +129,7 @@ def printCacheDirect(cache, lineSize, tagSize, out):
 	#write("", out)
 
 def printCacheAssoc(cache, tagSize, out):
-	l = str(bitLen(len(cache)))
+	l = str(sizeof(len(cache)))
 	write(("{0:"+l+"s}").format("Line") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | Dados", out)
 	for i in range(0, len(cache)):
 		if len(cache[i]) > 1 and cache[i][0] != None:
