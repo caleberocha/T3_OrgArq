@@ -1,3 +1,4 @@
+# coding: latin-1
 import math
 import os
 
@@ -9,136 +10,110 @@ def write(text, where):
 		t.write(text + "\n")
 		t.close()
 
-def sizeof(number):
+def bitSizeOf(number):
 	n = 0
 	while(number != 0):
 		number = number >> 1
 		n += 1
 	return n
 
-def hitDirect(cacheLine, addr, addrSize, wordSize, tagSize):
-	if len(cacheLine) < 1:
-		return False
+def hit(cache, line, address, addressSize, wordSize, tagSize):
+	lineRange = [0, len(cache)]
+	if line > -1:
+		lineRange = [line, line+1]
 
-	if cacheLine[0] != addr >> addrSize - tagSize:
-		return False
-
-	return True
-	#return addr & ~(wordSize-1) in cacheLine[1:]
-
-def hitAssoc(cache, addr, addrSize, wordSize, tagSize):
-	for line in cache:
-		if len(line) > 0 and line[0] == addr >> addrSize - tagSize: # and addr & ((1 << tagSize) - 1 << addrSize - tagSize) in line[1:]:
+	for i in range(lineRange[0], lineRange[1]):
+		if len(cache[i]) > 0 and cache[i][0] == address >> addressSize - tagSize:
 			return True
-
 	return False
 
-def cacheSimulatorDirect(file, addressSize, lineSize, wordSize, out):
-	if(out != "console" and os.path.isfile(out)):
-		os.remove(out)
-
-	cache = [None] * (1 << (lineSize))
-	for i in range(0, len(cache)):
-		cache[i] = [None] * ((1 << wordSize) + 1)
-
-	wordByteSize = addressSize / 8 - 1
-
-	tagSize = addressSize - lineSize - wordSize - wordByteSize
-	hits = 0
-	arq = open(file, 'r')
-	addresses = arq.readlines()
-
-	write("{0:4s}".format("Addr") + " | " + ("{0:"+str(addressSize)+"s}").format("Byte") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | " + ("{0:"+str(lineSize)+"s}").format("Line") + " | " + ("{0:"+str(wordSize)+"s}").format("Wd") + " | Result", out)
-	for address in addresses:
-		address = address.replace("\r","").replace("\n","")
-		address = int(address,16)
-
-		tag  = address >> lineSize + wordSize + wordByteSize
-		line = address >> wordSize + wordByteSize & ((1 << lineSize) - 1)
-		word = address >> wordByteSize & ((1 << wordSize) - 1)
-
-		lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(lineSize)+"b}").format(line)) + " | " + ("{0:0"+str(wordSize)+"b}").format(word)
-		if hitDirect(cache[line], address, addressSize, wordSize, tagSize):
-			hits += 1
-			write(lineContent + " | " + "Hit", out)
-		else:
-			write(lineContent + " | " + "Miss", out)
-			cache[line][0] = tag
-			for i in range(1, len(cache[line])):
-				cache[line][i] = (address >> wordByteSize+wordSize << wordSize) + (i-1) << wordByteSize
-
-		#printCacheDirect(cache, lineSize, tagSize, out)
-
-	write("\nEstado final da cache:", out)
-	printCacheDirect(cache, lineSize, tagSize, out)
-	write("\nEnderecos: " + str(len(addresses)), out)
-	write("Hits:      " + str(hits) + " (" + str(hits / float(len(addresses)) * 100) + "%)", out)
-	write("Misses:    " + str(len(addresses) - hits), out)
-
-def cacheSimulatorAssoc(file, addressSize, wordSize, cacheSize, out):
-	if(out != "console" and os.path.isfile(out)):
-		os.remove(out)
-
-	cache = [None] * cacheSize
-	for i in range(0, len(cache)):
-		cache[i] = [None] * ((1 << wordSize) + 1)
-
-	wordByteSize = addressSize / 8 - 1
-	tagSize = addressSize - wordSize - wordByteSize
-	index = 0
-	hits = 0
-	arq = open(file, 'r')
-	addresses = arq.readlines()
-
-	write("{0:4s}".format("Addr") + " | " + ("{0:"+str(addressSize)+"s}").format("Byte") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | " + ("{0:"+str(wordSize)+"s}").format("Wd") + " | Result", out)
-	for address in addresses:
-		address = address.replace("\r","").replace("\n","")
-		address = int(address,16)
-
-		tag  = address >> wordSize + wordByteSize
-		word = address >> wordByteSize & ((1 << wordSize) - 1)
-
-		lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(wordSize)+"b}").format(word))
-		if hitAssoc(cache, address, addressSize, wordSize, tagSize):
-			hits += 1
-			write(lineContent + " | " + "Hit", out)
-		else:
-			write(lineContent + " | " + "Miss", out)
-			cache[index][0] = tag
-			for i in range(1, len(cache[index])):
-				cache[index][i] = (address >> wordByteSize+wordSize << wordSize) + (i-1) << wordByteSize
-
-			index += 1
-			index = index % cacheSize
-
-		#printCacheAssoc(cache, tagSize, out)
-
-	write("\nEstado final da cache:", out)
-	printCacheAssoc(cache, tagSize, out)
-	write("\nEnderecos: " + str(len(addresses)), out)
-	write("Hits:      " + str(hits) + " (" + str(hits / float(len(addresses)) * 100) + "%)", out)
-	write("Misses:    " + str(len(addresses) - hits), out)
-
-
-def printCacheDirect(cache, lineSize, tagSize, out):
+def printCache(cache, lineSize, tagSize, out):
 	l = str(lineSize)
+	if lineSize == -1:
+		l = str(bitSizeOf(len(cache)))
+
 	write(("{0:"+l+"s}").format("Line") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | Dados", out)
 	for i in range(0, len(cache)):
 		if len(cache[i]) > 1 and cache[i][0] != None:
 			write(("{0:0"+l+"b}").format(i) + " | " + ("{0:0"+str(tagSize)+"b}").format(cache[i][0]) + " | " + str(", ".join('{0:04x}'.format(k) for k in cache[i][1:])), out)
 	#write("", out)
 
-def printCacheAssoc(cache, tagSize, out):
-	l = str(sizeof(len(cache)))
-	write(("{0:"+l+"s}").format("Line") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | Dados", out)
+def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize, out):
+	if out != "console" and os.path.isfile(out):
+		os.remove(out)
+
+	if mappingType != "d" and mappingType != "a":
+		raise("Tipo de mapeamento inválido! Os tipos suportados são d (direto) e a (associativo)")
+
+	isDirectMapping = mappingType == "d"
+
+	if isDirectMapping:
+		if lineSize == 0:
+			raise("Tamanho de linha inválido")
+		cache = [None] * (1 << (lineSize))
+	else:
+		if cacheSize == 0:
+			raise("Tamanho de cache inválido")
+		cache = [None] * cacheSize
 	for i in range(0, len(cache)):
-		if len(cache[i]) > 1 and cache[i][0] != None:
-			write(("{0:0"+l+"b}").format(i) + " | " + ("{0:0"+str(tagSize)+"b}").format(cache[i][0]) + " | " + str(", ".join('{0:04x}'.format(k) for k in cache[i][1:])), out)
-	#write("", out)
+		cache[i] = [None] * ((1 << wordSize) + 1)
+
+	sizeofWord = addressSize / 8 - 1
+
+	if isDirectMapping:
+		tagSize = addressSize - lineSize - wordSize - sizeofWord
+	else:
+		tagSize = addressSize - wordSize - sizeofWord
+
+	lineIndex = 0
+	hits = 0
+	arq = open(file, 'r')
+	addresses = arq.readlines()
+
+	if isDirectMapping:
+		write("{0:4s}".format("Addr") + " | " + ("{0:"+str(addressSize)+"s}").format("Byte") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | " + ("{0:"+str(lineSize)+"s}").format("Line") + " | " + ("{0:"+str(wordSize)+"s}").format("Wd") + " | Result", out)
+	else:
+		write("{0:4s}".format("Addr") + " | " + ("{0:"+str(addressSize)+"s}").format("Byte") + " | " + ("{0:"+str(tagSize)+"s}").format("Tag") + " | " + ("{0:"+str(wordSize)+"s}").format("Wd") + " | Result", out)
+
+	for address in addresses:
+		address = address.replace("\r","").replace("\n","")
+		address = int(address,16)
+
+		word = address >> sizeofWord & ((1 << wordSize) - 1)
+		if isDirectMapping:
+			tag = address >> lineSize + wordSize + sizeofWord
+			lineIndex = address >> wordSize + sizeofWord & ((1 << lineSize) - 1)
+			lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(lineSize)+"b}").format(lineIndex)) + " | " + ("{0:0"+str(wordSize)+"b}").format(word)
+			lineIndexForHit = lineIndex
+		else:
+			tag = address >> wordSize + sizeofWord
+			lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(wordSize)+"b}").format(word))
+			lineIndexForHit = -1
+		
+		if hit(cache, lineIndexForHit, address, addressSize, wordSize, tagSize):
+			hits += 1
+			write(lineContent + " | " + "Hit", out)
+		else:
+			write(lineContent + " | " + "Miss", out)
+			cache[lineIndex][0] = tag
+			for i in range(1, len(cache[lineIndex])):
+				cache[lineIndex][i] = (address >> sizeofWord+wordSize << wordSize) + (i-1) << sizeofWord
+
+		if isDirectMapping == False:
+			lineIndex += 1
+			lineIndex = lineIndex % cacheSize
+			lineSize = -1
+
+		#printCache(cache, lineSize, tagSize, out)
+
+	write("\nEstado final da cache:", out)
+	printCache(cache, lineSize, tagSize, out)
+	write("\nEnderecos: " + str(len(addresses)), out)
+	write("Hits:      " + str(hits) + " (" + str(hits / float(len(addresses)) * 100) + "%)", out)
+	write("Misses:    " + str(len(addresses) - hits), out)
 
 
-
-cacheSimulatorDirect("addresses.txt", 16, 4, 2, "direto1.txt")
-cacheSimulatorDirect("addresses.txt", 16, 5, 1, "direto2.txt")
-cacheSimulatorAssoc("addresses.txt", 16, 2, 16, "assoc1.txt")
-cacheSimulatorAssoc("addresses.txt", 16, 1, 32, "assoc2.txt")
+cacheSimulator("d", "addresses.txt", 16, 4, 2, 0, "direto1.txt")
+cacheSimulator("d", "addresses.txt", 16, 5, 1, 0, "direto2.txt")
+cacheSimulator("a", "addresses.txt", 16, 0, 2, 16, "assoc1.txt")
+cacheSimulator("a", "addresses.txt", 16, 0, 1, 32, "assoc2.txt")
