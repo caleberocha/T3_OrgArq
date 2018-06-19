@@ -25,8 +25,8 @@ def hit(cache, line, address, addressSize, wordSize, tagSize):
 
 	for i in range(lineRange[0], lineRange[1]):
 		if len(cache[i]) > 0 and cache[i][0] == address >> addressSize - tagSize:
-			return i
-	return -1
+			return True
+	return False
 
 def printCache(cache, lineSize, tagSize, out):
 	l = lineSize
@@ -91,11 +91,8 @@ def cacheSimulator(mappingType, file, addressSize, lineSize, wordSize, cacheSize
 			lineContent = str("{0:04x}".format(address) + " | " + ("{0:0"+str(addressSize)+"b}").format(address) + " | " + ("{0:0"+str(tagSize)+"b}").format(tag) + " | " + ("{0:0"+str(wordSize)+"b}").format(word))
 			lineIndexForHit = -1
 		
-		# Em mapeamento associativo, lineIndexForHit deve ser igual a -1
-		h = hit(cache, lineIndexForHit, address, addressSize, wordSize, tagSize)
-		if h > -1:
+		if hit(cache, lineIndexForHit, address, addressSize, wordSize, tagSize):
 			hits += 1
-
 			write(lineContent + " | " + "Hit", out)
 		else:
 			write(lineContent + " | " + "Miss", out)
